@@ -37,7 +37,7 @@ function cn(...inputs: ClassValue[]) {
 
 const Logo = ({ className }: { className?: string }) => (
   <div className={cn("w-32 h-32 rounded-full bg-white flex items-center justify-center border-4 border-blue-900 shadow-xl overflow-hidden", className)}>
-    <img src="/images/logo1.jpg" alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+    <img src="/images/logo1.jpg" alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
   </div>
 );
 
@@ -347,7 +347,6 @@ export default function App() {
                   alt={`Question Page ${activeImageIndex + 1}`}
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
                 />
               </div>
               
@@ -751,7 +750,6 @@ export default function App() {
                           className="w-24 h-24 object-contain rounded-full" 
                           style={{ border: '2px solid #1e3a8a' }}
                           referrerPolicy="no-referrer"
-                          crossOrigin="anonymous"
                         />
                         <h1 className="text-3xl font-black tracking-tighter" style={{ color: '#0f172a' }}>
                           LYCEUMVERSE
