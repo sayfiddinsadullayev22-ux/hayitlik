@@ -1,13 +1,626 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyceumverse Mock</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        [v-cloak] { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .scale-in { animation: scaleIn 0.3s ease-out; }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Views will be injected here -->
+    </div>
 
+    <script>
+        // --- Data ---
+        const SECTIONS = [
+            {
+                id: 'iq',
+                title: 'IQ Mock-1',
+                duration: 20,
+                images: [
+                    'omages/iq_page1.jpg',
+                    'omages/iq_page2.jpg',
+                    'omages/iq_page3.jpg',
+                    'omages/iq_page4.jpg',
+                    'omages/iq_page5.jpg',
+                    'omages/iq_page6.jpg',
+                ],
+                questions: Array.from({ length: 20 }, (_, i) => ({ id: i + 1, correctAnswer: ['c', 'a', 'd', 'c', 'b', 'a', 'c', 'b', 'd', 'c', 'b', 'a', 'b', 'c', 'd', 'd', 'c', 'b', 'a', 'c'][i] }))
+            },
+            {
+                id: 'math',
+                title: 'Mathematics',
+                duration: 40,
+                images: [
+                    'omages/math_page1.jpg',
+                    'omages/math_page2.jpg',
+                    'omages/math_page3.jpg',
+                    'omages/math_page4.jpg',
+                ],
+                questions: Array.from({ length: 20 }, (_, i) => ({ id: i + 1, correctAnswer: ['c', 'd', 'c', 'c', 'b', 'b', 'a', 'a', 'b', 'd', 'c', 'd', 'b', 'a', 'd', 'a', 'b', 'b', 'a', 'd'][i] }))
+            },
+            {
+                id: 'english',
+                title: 'English',
+                duration: 40,
+                images: [
+                    'omages/english_page1.jpg',
+                    'omages/english_page2.jpg',
+                    'omages/english_page3.jpg',
+                    'omages/english_page4.jpg',
+                    'omages/english_page5.jpg',
+                ],
+                questions: Array.from({ length: 20 }, (_, i) => ({ id: i + 1, correctAnswer: ['b', 'a', 'b', 'b', 'b', 'd', 'a', 'c', 'd', 'c', 'a', 'd', 'b', 'a', 'a', 'c', 'b', 'b', 'd', 'b'][i] }))
+            }
+        ];
+
+        const WEIGHTS = {
+            iq: 1.1,
+            math: 3.1,
+            english: 3.1
+        };
+
+        // --- State ---
+        let state = {
+            status: 'idle', // idle, instructions, testing, results
+            currentSectionId: 'iq',
+            answers: [], // { sectionId, questionId, answer }
+            startTime: null,
+            endTime: null,
+            timeLeft: 0,
+            activeImageIndex: 0,
+            userName: '',
+            isGenerating: false,
+            showFinishModal: false,
+            showCertificateModal: false,
+            isNameConfirmed: false
+        };
+
+        // --- Utils ---
+        function saveState() {
+            if (state.status === 'results') {
+                localStorage.setItem('lyceumverse_mock_result', JSON.stringify({
+                    answers: state.answers,
+                    startTime: state.startTime,
+                    endTime: state.endTime,
+                    userName: state.userName
+                }));
+            }
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('lyceumverse_mock_result');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.status = 'results';
+                    state.answers = parsed.answers;
+                    state.startTime = parsed.startTime;
+                    state.endTime = parsed.endTime;
+                    state.userName = parsed.userName || '';
+                } catch (e) {
+                    console.error("Failed to load state", e);
+                }
+            }
+        }
+
+        function playSuccessSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const playNote = (freq, startTime, duration, type = 'sine', volume = 0.1) => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(freq, startTime);
+                    gainNode.gain.setValueAtTime(0, startTime);
+                    gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                    oscillator.start(startTime);
+                    oscillator.stop(startTime + duration);
+                };
+                const now = audioContext.currentTime;
+                // A more "charming" and triumphant melody
+                const melody = [
+                    { f: 392.00, t: 0, d: 0.2, v: 0.1 },    // G4
+                    { f: 523.25, t: 0.2, d: 0.2, v: 0.1 },  // C5
+                    { f: 659.25, t: 0.4, d: 0.2, v: 0.1 },  // E5
+                    { f: 783.99, t: 0.6, d: 0.4, v: 0.15 }, // G5
+                    { f: 659.25, t: 1.0, d: 0.2, v: 0.1 },  // E5
+                    { f: 783.99, t: 1.2, d: 0.8, v: 0.2 },  // G5 (Triumphant finish)
+                ];
+                melody.forEach(note => playNote(note.f, now + note.t, note.d, 'sine', note.v));
+            } catch (e) {
+                console.warn("Audio context not supported or blocked", e);
+            }
+        }
+
+        // --- Logic ---
+        function startTest() {
+            state.status = 'testing';
+            state.currentSectionId = SECTIONS[0].id;
+            state.startTime = Date.now();
+            state.timeLeft = SECTIONS[0].duration * 60;
+            state.activeImageIndex = 0;
+            render();
+            startTimer();
+        }
+
+        let timerInterval = null;
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (state.status !== 'testing') {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                state.timeLeft--;
+                if (state.timeLeft <= 0) {
+                    nextSection();
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function nextSection() {
+            const currentIndex = SECTIONS.findIndex(s => s.id === state.currentSectionId);
+            if (currentIndex < SECTIONS.length - 1) {
+                const next = SECTIONS[currentIndex + 1];
+                state.currentSectionId = next.id;
+                state.timeLeft = next.duration * 60;
+                state.activeImageIndex = 0;
+                render();
+            } else {
+                finishTest();
+            }
+        }
+
+        function finishTest() {
+            state.status = 'results';
+            state.endTime = Date.now();
+            state.showFinishModal = false;
+            saveState();
+            render();
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#1e3a8a', '#000000', '#ffffff']
+            });
+            playSuccessSound();
+        }
+
+        function handleAnswer(questionId, answer) {
+            const existingIndex = state.answers.findIndex(
+                a => a.sectionId === state.currentSectionId && a.questionId === questionId
+            );
+            if (existingIndex >= 0) {
+                state.answers[existingIndex].answer = answer;
+            } else {
+                state.answers.push({ sectionId: state.currentSectionId, questionId, answer });
+            }
+            render();
+        }
+
+        function calculateResults() {
+            const results = SECTIONS.map(section => {
+                const sectionAnswers = state.answers.filter(a => a.sectionId === section.id);
+                let correctCount = 0;
+                const breakdown = section.questions.map(q => {
+                    const userAnswer = sectionAnswers.find(a => a.questionId === q.id)?.answer;
+                    const isCorrect = userAnswer === q.correctAnswer;
+                    if (isCorrect) correctCount++;
+                    return { id: q.id, userAnswer, correctAnswer: q.correctAnswer, isCorrect };
+                });
+                const weight = WEIGHTS[section.id];
+                const score = Number((correctCount * weight).toFixed(1));
+                const maxScore = Number((section.questions.length * weight).toFixed(1));
+                return { id: section.id, title: section.title, correct: correctCount, total: section.questions.length, score, maxScore, breakdown };
+            });
+            const totalScore = Number(results.reduce((sum, r) => sum + r.score, 0).toFixed(1));
+            const maxTotalScore = Number(results.reduce((sum, r) => sum + r.maxScore, 0).toFixed(1));
+            const totalCorrect = results.reduce((sum, r) => sum + r.correct, 0);
+            return { results, totalScore, maxTotalScore, totalCorrect };
+        }
+
+        // --- Rendering ---
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = '';
+
+            if (state.status === 'idle') {
+                app.innerHTML = `
+                    <div class="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-slate-900 scale-in">
+                        <div class="flex flex-col items-center gap-8 w-full max-w-md">
+                            <div class="w-32 h-32 rounded-full bg-white flex items-center justify-center border-4 border-blue-900 shadow-xl overflow-hidden">
+                                <img src="omages/logo1.jpg" alt="Logo" class="w-full h-full object-contain">
+                            </div>
+                            <div class="text-center">
+                                <h1 class="text-4xl font-black tracking-tighter text-slate-900 mb-2">LYCEUMVERSE</h1>
+                                <p class="text-blue-900 font-medium uppercase tracking-widest text-sm">Bonus Mock Exam</p>
+                            </div>
+                            
+                            <div class="w-full space-y-4">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Ism va Familiya</label>
+                                    <input type="text" id="initial-name-input" value="${state.userName}" placeholder="Ismingizni kiriting..." class="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-900 outline-none text-lg font-bold text-center transition-all">
+                                </div>
+                                <button onclick="confirmInitialName()" class="w-full group relative flex items-center justify-center gap-4 bg-blue-900 text-white px-10 py-5 rounded-[2rem] font-black text-xl hover:bg-slate-900 transition-all shadow-2xl hover:scale-[1.02] active:scale-[0.98]">
+                                    DAVOM ETISH
+                                    <i data-lucide="arrow-right" class="group-hover:translate-x-1 transition-transform"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.status === 'instructions') {
+                app.innerHTML = `
+                    <div class="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 fade-in">
+                        <div class="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl border border-slate-100">
+                            <div class="flex items-center gap-3 mb-6 text-blue-900">
+                                <i data-lucide="alert-circle" size="32"></i>
+                                <h2 class="text-2xl font-bold">Test Tarkibi</h2>
+                            </div>
+                            <div class="space-y-4 mb-8">
+                                ${SECTIONS.map(s => `
+                                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div>
+                                            <h3 class="font-bold text-slate-900">${s.title}</h3>
+                                            <p class="text-sm text-slate-500">${s.questions.length} ta savol</p>
+                                        </div>
+                                        <div class="text-blue-900 font-mono font-bold">${s.duration} min</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="bg-blue-50 p-4 rounded-2xl mb-8 text-sm text-blue-800 leading-relaxed">
+                                <p><strong>Eslatma:</strong> Har bir bo'lim uchun vaqt alohida hisoblanadi. Vaqt tugasa, avtomatik keyingi bo'limga o'tiladi.</p>
+                            </div>
+                            <button onclick="startTest()" class="w-full bg-blue-900 text-white py-5 rounded-[2rem] font-black text-xl hover:bg-slate-900 transition-all shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3">
+                                <i data-lucide="play" class="fill-current"></i>
+                                TESTNI BOSHLASH
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (state.status === 'testing') {
+                const currentSection = SECTIONS.find(s => s.id === state.currentSectionId);
+                const currentAnswers = state.answers.filter(a => a.sectionId === state.currentSectionId);
+                const minutes = Math.floor(state.timeLeft / 60);
+                const seconds = state.timeLeft % 60;
+                const timerClass = state.timeLeft < 60 ? "bg-red-100 text-red-600 animate-pulse" : "bg-blue-50 text-blue-900";
+
+                app.innerHTML = `
+                    <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-[8px] text-white font-bold leading-none text-center">
+                                LYCEUM<br/>VERSE
+                            </div>
+                            <div class="hidden sm:block">
+                                <h1 class="font-bold text-slate-900 leading-none">${currentSection.title}</h1>
+                                <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">
+                                    ${SECTIONS.findIndex(s => s.id === state.currentSectionId) + 1} / ${SECTIONS.length} BO'LIM
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 sm:gap-4">
+                            <div id="timer-display" class="flex items-center gap-2 px-4 py-2 rounded-full font-mono text-lg font-bold shadow-sm ${timerClass}">
+                                <i data-lucide="timer" size="20"></i>
+                                <span>${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}</span>
+                            </div>
+                            <button onclick="state.showFinishModal = true; render();" class="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                                <i data-lucide="log-out" size="20"></i>
+                            </button>
+                        </div>
+                    </header>
+                    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+                        <div class="flex-1 overflow-y-auto p-4 bg-slate-100">
+                            <div class="max-w-3xl mx-auto space-y-4">
+                                <div class="relative aspect-[3/4] bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200">
+                                    <img src="${currentSection.images[state.activeImageIndex]}" class="w-full h-full object-contain">
+                                </div>
+                                <div class="flex items-center justify-center gap-6 pb-4">
+                                    <button onclick="prevImage()" class="w-12 h-12 rounded-full flex items-center justify-center bg-white text-slate-900 border-2 border-slate-100 hover:border-blue-900 hover:text-blue-900 transition-all shadow-sm ${state.activeImageIndex === 0 ? 'opacity-30 pointer-events-none' : ''}">
+                                        <i data-lucide="chevron-left" size="24"></i>
+                                    </button>
+                                    <div class="font-bold text-slate-400">
+                                        <span class="text-slate-900">${state.activeImageIndex + 1}</span> / ${currentSection.images.length}
+                                    </div>
+                                    <button onclick="nextImage()" class="w-12 h-12 rounded-full flex items-center justify-center bg-white text-slate-900 border-2 border-slate-100 hover:border-blue-900 hover:text-blue-900 transition-all shadow-sm ${state.activeImageIndex === currentSection.images.length - 1 ? 'opacity-30 pointer-events-none' : ''}">
+                                        <i data-lucide="chevron-right" size="24"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <aside class="w-full md:w-80 bg-white border-l border-slate-100 flex flex-col shadow-2xl z-10">
+                            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                                <h2 class="font-bold text-slate-900">Javoblar Varag'i</h2>
+                                <span class="text-xs font-bold text-blue-900 bg-blue-50 px-2 py-1 rounded-md">
+                                    ${currentAnswers.length} / ${currentSection.questions.length}
+                                </span>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4 grid grid-cols-1 gap-4">
+                                ${currentSection.questions.map(q => {
+                                    const userAnswer = currentAnswers.find(a => a.questionId === q.id)?.answer;
+                                    return `
+                                        <div class="flex items-center gap-4 p-2 rounded-xl hover:bg-slate-50 transition-colors">
+                                            <span class="w-6 text-sm font-bold text-slate-400">${q.id}.</span>
+                                            <div class="flex-1 flex justify-between gap-1">
+                                                ${['a', 'b', 'c', 'd'].map(opt => `
+                                                    <button onclick="handleAnswer(${q.id}, '${opt}')" class="w-10 h-10 rounded-lg font-bold uppercase transition-all border-2 ${userAnswer === opt ? 'bg-blue-900 border-blue-900 text-white shadow-inner' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'}">
+                                                        ${opt}
+                                                    </button>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div class="p-4 bg-slate-50 border-t border-slate-100">
+                                <button onclick="nextSection()" class="w-full bg-blue-900 text-white py-5 rounded-[2rem] font-black text-lg flex items-center justify-center gap-3 hover:bg-slate-900 transition-all shadow-2xl hover:scale-[1.02] active:scale-[0.98]">
+                                    ${SECTIONS.findIndex(s => s.id === state.currentSectionId) === SECTIONS.length - 1 ? 'TUGATISH' : 'KEYINGI BO\'LIM'}
+                                    <i data-lucide="chevron-right" size="24"></i>
+                                </button>
+                            </div>
+                        </aside>
+                    </main>
+                    ${state.showFinishModal ? `
+                        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div onclick="state.showFinishModal = false; render();" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+                            <div class="relative bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center scale-in">
+                                <div class="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i data-lucide="alert-circle" size="32"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-slate-900 mb-2">Testni tugatish</h3>
+                                <p class="text-slate-500 mb-8 leading-relaxed">Haqiqatdan ham testni muddatidan oldin tugatmoqchimisiz? Barcha javoblar saqlanadi.</p>
+                                <div class="flex gap-3">
+                                    <button onclick="state.showFinishModal = false; render();" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">YO'Q</button>
+                                    <button onclick="finishTest()" class="flex-1 py-4 rounded-2xl font-black text-white bg-red-600 hover:bg-red-700 transition-all shadow-xl shadow-red-100">HA, TUGATISH</button>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+            } else if (state.status === 'results') {
+                const { results, totalScore, maxTotalScore, totalCorrect } = calculateResults();
+                app.innerHTML = `
+                    <div class="min-h-screen bg-slate-50 p-4 md:p-8 fade-in">
+                        <div class="max-w-4xl mx-auto">
+                            <div class="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
+                                <div class="bg-slate-900 text-white p-10 text-center relative overflow-hidden">
+                                    <div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                                        <div class="absolute top-[-50%] left-[-20%] w-[140%] h-[200%] bg-gradient-to-br from-blue-500 to-transparent rotate-12"></div>
+                                    </div>
+                                    <i data-lucide="trophy" class="mx-auto mb-4 text-yellow-400" size="64"></i>
+                                    <h2 class="text-4xl font-black tracking-tighter mb-2">NATIJA</h2>
+                                    <div class="inline-flex items-baseline gap-2 bg-white/10 px-6 py-2 rounded-full backdrop-blur-sm">
+                                        <span class="text-5xl font-black">${totalScore}</span>
+                                        <span class="text-xl opacity-50">/ ${maxTotalScore}</span>
+                                    </div>
+                                    <p class="mt-4 text-blue-300 font-bold uppercase tracking-widest text-sm">Umumiy Ball</p>
+                                    <p class="text-xs opacity-40 mt-1">(${totalCorrect} ta to'g'ri javob)</p>
+                                </div>
+                                <div class="p-6 md:p-10">
+                                    <div class="flex flex-col items-center gap-6 mb-12">
+                                        <button onclick="state.showCertificateModal = true; render();" class="w-full max-w-md flex items-center justify-center gap-3 bg-blue-900 text-white px-10 py-5 rounded-[2rem] font-black text-xl hover:bg-slate-900 transition-all shadow-2xl hover:scale-[1.02] active:scale-[0.98]">
+                                            <i data-lucide="award" size="28"></i>
+                                            SERTIFIKATNI OLISH
+                                        </button>
+                                        <p class="text-slate-400 text-sm font-medium">Sertifikatni yuklab olish uchun yuqoridagi tugmani bosing</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                                        ${results.map(r => `
+                                            <div class="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex flex-col items-center text-center">
+                                                <h3 class="font-bold text-slate-500 uppercase tracking-wider text-xs mb-4">${r.title}</h3>
+                                                <div class="text-3xl font-black text-slate-900 mb-1">${r.score}</div>
+                                                <div class="text-xs text-slate-400 font-bold mb-2">MAX: ${r.maxScore}</div>
+                                                <div class="text-sm font-medium text-slate-600 mb-2">${r.correct} ta to'g'ri</div>
+                                                <div class="w-full bg-slate-200 h-2 rounded-full mt-2 overflow-hidden">
+                                                    <div class="bg-blue-900 h-full rounded-full transition-all duration-1000" style="width: ${(r.correct / r.total) * 100}%"></div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <div class="flex items-center justify-center gap-6 mb-8 text-sm font-bold uppercase tracking-widest">
+                                        <div class="flex items-center gap-2 text-emerald-600">
+                                            <div class="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                                            To'g'ri
+                                        </div>
+                                        <div class="flex items-center gap-2 text-red-600">
+                                            <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                            Xato
+                                        </div>
+                                    </div>
+                                    <div class="space-y-12">
+                                        ${results.map(r => `
+                                            <div>
+                                                <div class="flex items-center gap-3 mb-6">
+                                                    <div class="h-8 w-1 bg-blue-900 rounded-full"></div>
+                                                    <h3 class="text-xl font-bold text-slate-900">${r.title} - Tafsilotlar</h3>
+                                                </div>
+                                                <div class="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                                                    ${r.breakdown.map(q => `
+                                                        <div class="aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold border-2 transition-all ${q.isCorrect ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}">
+                                                            <span class="opacity-50 mb-1">${q.id}</span>
+                                                            <span class="uppercase text-sm">${q.userAnswer || '-'}</span>
+                                                            ${!q.isCorrect ? `<span class="text-[8px] mt-1 opacity-50">(${q.correctAnswer})</span>` : ''}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <div class="mt-16 flex flex-col items-center gap-4">
+                                        <div class="bg-blue-50 text-blue-900 px-8 py-4 rounded-2xl font-bold flex items-center gap-3">
+                                            <i data-lucide="check-circle-2" size="24"></i>
+                                            TEST YAKUNLANDI
+                                        </div>
+                                        <p class="text-slate-400 text-sm">Lyceumverse Jamoasi tomonidan tayyorlandi</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ${state.showCertificateModal ? `
+                        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+                            <div onclick="if(!state.isGenerating) { state.showCertificateModal = false; render(); }" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md"></div>
+                            <div class="relative bg-white rounded-3xl p-6 md:p-10 max-w-2xl w-full shadow-2xl scale-in">
+                                <div class="flex flex-col items-center">
+                                    <div id="certificate-capture" class="w-full aspect-[1.414/1] p-8 flex flex-col items-center justify-between text-center relative overflow-hidden" style="min-height: 400px; background-color: #ffffff; border: 16px solid #1e3a8a;">
+                                        <div class="absolute top-0 right-0 w-32 h-32 rounded-bl-full" style="background-color: rgba(30, 58, 138, 0.05)"></div>
+                                        <div class="absolute bottom-0 left-0 w-32 h-32 rounded-tr-full" style="background-color: rgba(30, 58, 138, 0.05)"></div>
+                                        <div class="flex flex-col items-center gap-4">
+                                            <img src="omages/logo1.jpg" alt="Logo" class="w-24 h-24 object-contain rounded-full border-2 border-blue-900">
+                                            <h1 class="text-3xl font-black tracking-tighter text-slate-900">LYCEUMVERSE</h1>
+                                        </div>
+                                        <div class="space-y-4">
+                                            <p class="font-bold tracking-widest uppercase text-sm text-blue-900">Faxriy Sertifikat</p>
+                                            <h2 class="text-4xl font-serif italic pb-2 px-8 text-slate-800 border-b-2 border-slate-200">${state.userName}</h2>
+                                            <p class="max-w-md mx-auto text-sm leading-relaxed text-slate-500">
+                                                Lyceumverse Mock imtihonida muvaffaqiyatli ishtirok etib, 
+                                                <span class="font-bold text-slate-900"> ${totalScore} ball </span> 
+                                                to'plagani uchun taqdirlanadi.
+                                            </p>
+                                        </div>
+                                        <div class="w-full flex flex-col items-center gap-4">
+                                            <div class="px-6 py-3 rounded-full bg-blue-50 border border-blue-100">
+                                                <p class="font-bold text-lg text-blue-900">🌙 Hayit ayyomingiz muborak bo'lsin!</p>
+                                                <p class="text-xs font-medium text-blue-700">Lyceumverse Jamoasi sizni chin qalbdan tabriklaydi.</p>
+                                            </div>
+                                            <div class="flex justify-between w-full px-8 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                                <span>ID: ${Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+                                                <span>SANA: ${new Date().toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-8 flex flex-col sm:flex-row justify-center gap-4 w-full">
+                                        <button onclick="downloadCertificate()" class="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-blue-900 text-white py-5 rounded-[2rem] font-black text-lg hover:bg-slate-900 transition-all shadow-xl">
+                                            <i data-lucide="download" size="24"></i>
+                                            ${state.isGenerating ? 'YUKLANMOQDA...' : 'YUKLAB OLISH'}
+                                        </button>
+                                        <button onclick="shareToTelegram()" class="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-[#0088cc] text-white py-5 rounded-[2rem] font-black text-lg hover:bg-[#0077b5] transition-all shadow-xl">
+                                            <i data-lucide="send" size="24"></i>
+                                            TELEGRAMGA YUBORISH
+                                        </button>
+                                    </div>
+                                    <button onclick="state.showCertificateModal = false; render();" class="mt-6 bg-slate-100 text-slate-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-blue-900 hover:text-white transition-all shadow-sm">
+                                        <i data-lucide="bar-chart-2" size="20"></i>
+                                        TAHLILNI KO'RISH
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+            }
+
+            lucide.createIcons();
+        }
+
+        function confirmInitialName() {
+            const input = document.getElementById('initial-name-input');
+            if (input && input.value.trim()) {
+                state.userName = input.value.trim();
+                state.isNameConfirmed = true;
+                state.status = 'instructions';
+                render();
+            } else {
+                alert("Iltimos, ism va familiyangizni kiriting!");
+            }
+        }
+
+        function prevImage() {
+            if (state.activeImageIndex > 0) {
+                state.activeImageIndex--;
+                render();
+            }
+        }
+
+        function nextImage() {
+            const currentSection = SECTIONS.find(s => s.id === state.currentSectionId);
+            if (state.activeImageIndex < currentSection.images.length - 1) {
+                state.activeImageIndex++;
+                render();
+            }
+        }
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('timer-display');
+            if (!timerEl) return;
+            const minutes = Math.floor(state.timeLeft / 60);
+            const seconds = state.timeLeft % 60;
+            timerEl.querySelector('span').innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            if (state.timeLeft < 60) {
+                timerEl.classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
+                timerEl.classList.remove('bg-blue-50', 'text-blue-900');
+            }
+        }
+
+        function confirmName() {
+            const input = document.getElementById('user-name-input');
+            if (input && input.value.trim()) {
+                state.userName = input.value.trim();
+                state.isNameConfirmed = true;
+                render();
+            }
+        }
+
+        async function downloadCertificate() {
+            const cert = document.getElementById('certificate-capture');
+            if (!cert) return;
+            state.isGenerating = true;
+            render();
+            try {
+                const canvas = await html2canvas(cert, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
+                const image = canvas.toDataURL('image/png', 1.0);
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = `${state.userName}_Lyceumverse_Sertifikat.png`;
+                link.click();
+            } catch (err) {
+                console.error(err);
+            } finally {
+                state.isGenerating = false;
+                render();
+            }
+        }
+
+        async function shareToTelegram() {
+            const { totalScore, maxTotalScore } = calculateResults();
+            const text = encodeURIComponent(`Men Lyceumverse Mock imtihonini topshirdim! Ball: ${totalScore}/${maxTotalScore}\n\nBarchani Hayit bayrami bilan tabriklaymiz!`);
+            window.open(`https://t.me/share/url?url=${window.location.href}&text=${text}`, '_blank');
+        }
+
+        // --- Init ---
+        loadState();
+        render();
+    </script>
+</body>
+</html>
